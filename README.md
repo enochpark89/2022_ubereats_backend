@@ -266,3 +266,127 @@ export class CreateRestaurantDto {
   ownersName: string;
 }
 ```
+
+# 8. TypeORM
+
+- To communicate DB with NestJS, it is good to use TypeORM. You can write your own SQL code, but this will help us mix typescript to NestJS and to have interactivity.
+
+- If you want to set up DB in the front end, you can ddo that. 
+
+- You can also use many of the popular DB such as mysql, postgres, cockroachdb, mariadb, sqlite etc.
+
+- Before you start, 
+Widnows:
+1. Install PostgreSQL
+2. Install pgAdmin
+
+# 9. Window PostSQL and pgAdmin installation
+
+Steps:
+1. Make sure PostgreSQL is running
+2. Go to pgAdmin and create a new DB called uber-eats
+
+
+# 10 TypeORM setup
+
+- @nestjs/typeorm - natively made.
+
+- @nestjs/seaulize - good rating!
+*3.15 million downloads*
+
+*How do you install TypeORM?*
+
+```js
+npm install --save @nestjs/typeorm typeorm pg
+```
+
+- Connect from app.module.ts
+```js
+import { Module } from '@nestjs/common';
+import { GraphQLModule } from '@nestjs/graphql';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { RestaurantsModule } from './restaurants/restaurants.module';
+// If you import TypeOrmModule as below you can connect to the db.
+@Module({
+  imports: [
+    RestaurantsModule,
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: 'localhost',
+      port: 5432,
+      username: 'username',
+      password: 'passwords123'
+      database: 'uber-eats',
+      synchronize: true,
+      logging: true,
+    }),
+    GraphQLModule.forRoot({
+      autoSchemaFile: true,
+    }),
+  ],
+  controllers: [],
+  providers: [],
+})
+export class AppModule {}
+```
+
+# 11. Putting sensitive information to .env.
+
+- you can use .dotenv to hide the sensitive information. 
+- NestJS way also have configuration module.
+
+*How do you use a configuration module?*
+```bash
+npm i --save @nestjs/config
+```
+
+Steps:
+
+1. Import ConfigModule from the app.module.ts
+
+- Make this global so that this can be access everywhere. 
+
+src/app.module.ts
+```js
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { GraphQLModule } from '@nestjs/graphql';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { RestaurantsModule } from './restaurants/restaurants.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: process.env.NODE_ENV === 'dev' ? '.env.dev' : '.env.test',
+    }),
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: 'localhost',
+    GraphQLModule.forRoot({
+      autoSchemaFile: true,
+    }),
+    RestaurantsModule,
+  ],
+  controllers: [],
+  providers: [],
+})
+export class AppModule {}
+```
+
+2. Create three environment variables 
+- dev
+- env.dev
+- .env.test
+
+3. Install cross-env
+- With cross-env package, you can alternate between different .env files.
+*How do you install cross-env?*
+```bash
+npm i cross-env
+```
+
+4. Add the 'cross-env ENV=dev ' to the package.json script
+```js
+    "start:dev": "cross-env ENV=dev nest start --watch",
+```
