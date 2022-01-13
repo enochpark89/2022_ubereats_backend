@@ -387,6 +387,231 @@ npm i cross-env
 ```
 
 4. Add the 'cross-env ENV=dev ' to the package.json script
+package.json
 ```js
-    "start:dev": "cross-env ENV=dev nest start --watch",
+"start:dev": "cross-env ENV=dev nest start --watch",
+"start:dev": "cross-env NODE_ENV=dev nest start --watch",
+
+```
+
+5. Inside .env.dev file, put in the information to log into the DB.
+```.env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=username
+DB_PASSWORD=password123
+DB_NAME=uber-eats
+```
+
+6. Make sure that app.module.ts is using the information from .env.dev to log in
+app.module.ts
+```js
+......
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: process.env.NODE_ENV === 'dev' ? '.env.dev' : '.env.test',
+      ignoreEnvFile: process.env.NODE_ENV === 'prod',
+    }),
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DB_HOST,
+      port: +process.env.DB_PORT,
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      synchronize: true,
+      logging: true,
+......
+
+```
+
+# 12. Validate ConfigService - use joi
+
+joi documentation:
+https://joi.dev/api/?v=17.4.2
+
+*How do we validate our configService?*
+- *joi* is the most powerful schema description language and data validator for JavaScript
+```shell
+npm install joi
+```
+
+- Since joi is javascript based, we have to import in a different way. 
+```js
+import * as Joi from 'joi'
+```
+
+*How do we use joi to validate?*
+
+app.module.ts
+```js
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: process.env.NODE_ENV === 'dev' ? '.env.dev' : '.env.test',
+      ignoreEnvFile: process.env.NODE_ENV === 'prod',
+      validationSchema: Joi.object({
+        NODE_ENV: Joi.string()
+          .valid('dev', 'prod')
+          .required(),
+        DB_HOST: Joi.string().required(),
+        DB_PORT: Joi.string().required(),
+        DB_USERNAME: Joi.string().required(),
+        DB_PASSWORD: Joi.string().required(),
+        DB_NAME: Joi.string().required(),
+      }),
+    }),
+    TypeOrmModule.forRoot({
+```
+*NODE_ENV must be a cookie.*
+*Synchronize will synchronize the status with the db. We do not have to migrate everytime.*
+
+
+
+# 13. Create a first entity
+
+- ObjectType: what GraphQL takes to build a schema.
+- Entity decorator: will make typeORM to save in the DB. 
+
+- Combining both, we can create a new data in the DB. 
+src/restaurants/entities/restaurant.entity.ts
+```js
+import { Field, ObjectType } from '@nestjs/graphql';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+
+@ObjectType()
+@Entity()
+export class Restaurant {
+  @PrimaryGeneratedColumn()
+  @Field(type => Number)
+  id: number;
+
+  @Field(type => String)
+  @Column()
+  name: string;
+
+  @Field(type => Boolean)
+  @Column()
+  isVegan: boolean;
+
+  @Field(type => String)
+  @Column()
+  address: string;
+
+  @Field(type => String)
+  @Column()
+  ownersName: string;
+
+  @Field(type => String)
+  @Column()
+  categoryName: string;
+}
+```
+src/app.module.ts
+```js
+import { Restaurant } from './restaurants/entities/restaurant.entity';
+......
+      synchronize: process.env.NODE_ENV !== 'prod',
+      entities: [Restaurant],
+```
+
+# 14. Data Mapper vs Active Record
+
+- Data Mapper and Active Record are pattern of how we interact with the DB. 
+
+- Django and Ruby uses Active Record. 
+- NestJS uses Data Mapper
+
+Example of Active Records
+
+BaseEntity set up > Gets all the function such as .find or .findOne.
+
+Data Mapper do repository
+Repository is the one that is encharge of the 
+```js
+const userRepository = connection.getRepository(User);
+const user = new User();
+user.firstName = ""
+await userRepository.save(user)
+```
+Uses:
+Data Mapper: Big application
+Active Records: Small and simple application
+
+- Data Mapper is supported by TypeORM and also we can inject repository to your service and test services or mock or simulate db connection.
+
+# 15. Injecting the repository
+
+Steps:
+
+1. Import the repository from restaurants.module.ts
+src/restaurants/restaurants.module.ts
+```js
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Restaurant } from './entities/restaurant.entity';
+import { RestaurantResolver } from './restaurants.resolver';
+import { RestaurantService } from './restaurants.service';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([Restaurant])],
+  providers: [RestaurantResolver, RestaurantService],
+})
+export class RestaurantsModule {}
+```
+
+2. Prepare to use the repostory from restaurants.resolver.ts
+src/restaurants/restaurants.resolver.ts
+```js
+import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { CreateRestaurantDto } from './dtos/create-restaurant.dto';
+import { Restaurant } from './entities/restaurant.entity';
+import { RestaurantService } from './restaurants.service';
+
+@Resolver(of => Restaurant)
+export class RestaurantResolver {
+  constructor(private readonly restaurantService: RestaurantService) {}
+  @Query(returns => [Restaurant])
+  restaurants(): Promise<Restaurant[]> {
+    return this.restaurantService.getAll();
+  }
+  @Mutation(returns => Boolean)
+  createRestaurant(@Args() createRestaurantDto: CreateRestaurantDto): boolean {
+    return true;
+  }
+}
+```
+3. 
+
+Recap:
+
+*What is going on with restaurant*
+1. app.module.ts > entities: [Restaurant]
+- Restaurant is going to the DB. 
+
+2. In restaurant.module.ts, we are importing TypeOrmModule.forFeature([Restaurant])
+
+3. In resolver, we imported our restaurant service.
+
+4. 
+
+```
+전체 흐름: AppModule - TypeOrmModule - RestaurantsModule - RestaurantResolver - RestaurantService
+
+1) TypeOrmModule에 DB로 전송할 entity들 설정
+
+2) RestaurantsModule
+: TypeOrmModule의 Restaurant 엔티티를 다른 곳에서 Inject할 수 있도록 import하기.
+: providers에 RestaurantService 주입 => RestaurantResolver에서 사용 가능.
+
+3) RestaurantService
+: @InjectReposity(entity): 전달받은 entity를 기반으로 Repository 생성.
+: Repository의 메서드들로 DB에 접근하는 방식 지정.
+
+4) RestaurantResolver
+: GraphQL Query/Mutation으로 DB에 접근하는 RestaurantService의 메서드들 활용.
+
 ```
