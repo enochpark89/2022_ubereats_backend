@@ -615,3 +615,164 @@ Recap:
 : GraphQL Query/Mutation으로 DB에 접근하는 RestaurantService의 메서드들 활용.
 
 ```
+
+# 16. Create Restaurant
+
+- There are more features in TypeORM that make the job much easier. 
+- Method is the function inside the class. 
+- Difference between clean and save. 
+
+1. Create
+Steps:
+src/restaurants/restaurants.resolver.ts
+```js
+// add
+  async createRestaurant(
+    @Args() createRestaurantDto: CreateRestaurantDto,
+  ): Promise<boolean> {
+    try {
+      await this.restaurantService.createRestaurant(createRestaurantDto);
+      return true;
+    } catch (e) {
+      console.log(e);
+      return false;
+    }
+```
+
+2. Service
+Steps:
+src/restaurants/restaurants.service.ts
+```js
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CreateRestaurantDto } from './dtos/create-restaurant.dto';
+import { Restaurant } from './entities/restaurant.entity';
+
+@Injectable()
+export class RestaurantService {
+  constructor(
+    @InjectRepository(Restaurant)
+    private readonly restaurants: Repository<Restaurant>,
+  ) {}
+  getAll(): Promise<Restaurant[]> {
+    return this.restaurants.find();
+  }
+  createRestaurant(
+    createRestaurantDto: CreateRestaurantDto,
+  ): Promise<Restaurant> {
+    const newRestaurant = this.restaurants.create(createRestaurantDto);
+    return this.restaurants.save(newRestaurant);
+  }
+}
+```
+
+# 17. Mapped Types
+
+- We took an entity and added a new column called categoryName.
+- We forgot to update our DTO.
+*Problem DTO is not unified with the entity. We do not want to copy entity every time.*
+
+- Solution: Restaurant eneity will generate DB table, GraphQL and DTOs. 
+- Mapped types allow you to generate different base types. 
+
+4 Mapped Types:
+
+1. PartialType: 
+a. takes base type and base class
+b. export and regenerate all fields, not required.
+
+2. PickType:
+create class from selecting some properties in an input type.
+- you pick specific properties
+
+3. OmitType:
+- Generate class from base class except some fields.(omit)
+
+
+Steps:
+1. Delete all fields from dto and move to restaurant.entity.ts
+2. 
+src/restaurants/dtos/create-restaurant.dto.ts
+```js
+import { ArgsType, Field, InputType, OmitType } from '@nestjs/graphql';
+import { IsBoolean, IsString, Length } from 'class-validator';
+import { Restaurant } from '../entities/restaurant.entity';
+
+@InputType()
+export class CreateRestaurantDto extends OmitType(Restaurant, ['id']) {}
+```
+
+src/restaurants/entities/restaurant.entity.ts
+```js
+import { Field, InputType, ObjectType } from '@nestjs/graphql';
+import { IsBoolean, IsString, Length } from 'class-validator';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+
+@InputType({ isAbstract: true })
+@ObjectType()
+@Entity()
+export class Restaurant {
+	@@ -10,21 +12,27 @@ export class Restaurant {
+
+  @Field(type => String)
+  @Column()
+  @IsString()
+  @Length(5)
+  name: string;
+
+  @Field(type => Boolean)
+  @Column()
+  @IsBoolean()
+  isVegan: boolean;
+
+  @Field(type => String)
+  @Column()
+  @IsString()
+  address: string;
+
+  @Field(type => String)
+  @Column()
+  @IsString()
+  ownersName: string;
+
+  @Field(type => String)
+  @Column()
+  @IsString()
+  categoryName: string;
+}
+```
+
+src/restaurants/restaurants.resolver.ts
+```js
+import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { CreateRestaurantDto } from './dtos/create-restaurant.dto';
+import { Restaurant } from './entities/restaurant.entity';
+import { RestaurantService } from './restaurants.service';
+@Resolver(of => Restaurant)
+export class RestaurantResolver {
+  constructor(private readonly restaurantService: RestaurantService) {}
+  @Query(returns => [Restaurant])
+  restaurants(): Promise<Restaurant[]> {
+    return this.restaurantService.getAll();
+  }
+  @Mutation(returns => Boolean)
+  async createRestaurant(
+    @Args('input') createRestaurantDto: CreateRestaurantDto,
+  ): Promise<boolean> {
+    try {
+      await this.restaurantService.createRestaurant(createRestaurantDto);
+      return true;
+    } catch (e) {
+      console.log(e);
+      return false;
+    }
+  }
+}
+```
+
+- Omit type allows you to change the decorator. 
+- isAbstract: you are not going to use it but extend it.
+
+# 18. Update Restaurant
+
